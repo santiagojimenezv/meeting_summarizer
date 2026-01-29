@@ -2,6 +2,7 @@ import os
 import time
 import glob
 import shutil
+import argparse
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -67,28 +68,41 @@ os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-def summarize_video(video_path):
+def summarize_video(video_path, context=None):
     print(f"Processing: {video_path}")
-    
+
     try:
         # Upload the file
         print("  Uploading to Gemini...")
         video_file = genai.upload_file(path=video_path)
-        
+
         # Wait for processing
         print("  Waiting for Gemini to process the video...")
         while video_file.state.name == "PROCESSING":
             time.sleep(2)
             video_file = genai.get_file(video_file.name)
-            
+
         if video_file.state.name == "FAILED":
             print("  Error: Video processing failed.")
             return
 
+        # Build prompt with optional context
+        prompt = SUMMARY_PROMPT
+        if context:
+            prompt = f"""## Additional Context
+The following context has been provided to help with the summary:
+
+{context}
+
+---
+
+{SUMMARY_PROMPT}"""
+            print("  Using provided context...")
+
         print("  Generating summary...")
         model = genai.GenerativeModel(model_name=MODEL)
         response = model.generate_content(
-            [video_file, SUMMARY_PROMPT],
+            [video_file, prompt],
             request_options={"timeout": 600}
         )
         
@@ -112,18 +126,43 @@ def summarize_video(video_path):
     except Exception as e:
         print(f"  An error occurred: {e}")
 
+def load_context(context_path):
+    """Load context from a markdown file."""
+    if not os.path.exists(context_path):
+        print(f"Error: Context file not found: {context_path}")
+        exit(1)
+
+    with open(context_path, "r") as f:
+        return f.read()
+
 def main():
+    parser = argparse.ArgumentParser(
+        description="Summarize meeting videos using Google Gemini AI"
+    )
+    parser.add_argument(
+        "--context", "-c",
+        type=str,
+        help="Path to a markdown file with additional context for the summary"
+    )
+    args = parser.parse_args()
+
+    # Load context if provided
+    context = None
+    if args.context:
+        print(f"Loading context from: {args.context}")
+        context = load_context(args.context)
+
     print("Checking for .mov files in 'input' folder...")
     mov_files = glob.glob(os.path.join(INPUT_DIR, "*.mov"))
-    
+
     if not mov_files:
         print("No .mov files found in 'input' folder.")
         return
 
     for video_path in mov_files:
-        summarize_video(video_path)
+        summarize_video(video_path, context)
         print("-" * 30)
-    
+
     print("All done!")
 
 if __name__ == "__main__":

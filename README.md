@@ -6,6 +6,7 @@ A Python utility that automatically summarizes video recordings of meetings usin
 
 - Processes `.mov` video files and generates structured markdown summaries
 - Extracts key decisions, action items, participants, and discussion points
+- Optional context file support for richer, more accurate summaries
 - Automatically archives processed videos
 
 ## Requirements
@@ -34,6 +35,21 @@ A Python utility that automatically summarizes video recordings of meetings usin
    ```
 3. Find summaries in `output/` as markdown files
 4. Processed videos are moved to `processed/`
+
+### Adding Context (Optional)
+
+You can provide a markdown file with additional context to improve the summary. This is useful for including:
+- Project background
+- Attendee roles and responsibilities
+- Previous meeting notes
+- Agenda or expected topics
+
+```bash
+python3 summarize.py --context notes.md
+python3 summarize.py -c path/to/context.md
+```
+
+The context file can be located anywhere - just provide the relative or absolute path.
 
 ## Directory Structure
 
