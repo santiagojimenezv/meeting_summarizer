@@ -57,8 +57,10 @@ The context file can be located anywhere - just provide the relative or absolute
 ├── input/       # Drop .mov files here
 ├── output/      # Generated summaries (.md)
 ├── processed/   # Archived videos after processing
+├── transcripts/ # Saved transcripts of processed videos
 ├── summarize.py # Main script
-└── list_models.py # Utility to list available Gemini models
+├── list_models.py # Utility to list available Gemini models
+└── amaze_projects.md # Example context file
 ```
 
 ## Output Format

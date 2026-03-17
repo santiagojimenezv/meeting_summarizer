@@ -23,7 +23,7 @@ OUTPUT_DIR = "output"
 PROCESSED_DIR = "processed"
 
 # Model configuration
-MODEL = "gemini-flash-latest"
+MODEL = "gemini-2.5-flash"
 
 SUMMARY_PROMPT = """Analyze this meeting recording and create a comprehensive, well-structured summary in Markdown format.
 
@@ -74,12 +74,21 @@ def summarize_video(video_path, context=None):
     try:
         # Upload the file
         print("  Uploading to Gemini...")
-        video_file = genai.upload_file(path=video_path)
+        video_file = None
+        for attempt in range(3):
+            try:
+                video_file = genai.upload_file(path=video_path)
+                break
+            except Exception as e:
+                print(f"  Upload attempt {attempt + 1} failed: {e}")
+                if attempt == 2:
+                    raise
+                time.sleep(5)
 
         # Wait for processing
         print("  Waiting for Gemini to process the video...")
         while video_file.state.name == "PROCESSING":
-            time.sleep(2)
+            time.sleep(10)
             video_file = genai.get_file(video_file.name)
 
         if video_file.state.name == "FAILED":
@@ -87,7 +96,9 @@ def summarize_video(video_path, context=None):
             return
 
         # Build prompt with optional context
-        prompt = SUMMARY_PROMPT
+        base_name = os.path.basename(video_path)
+        prompt_with_filename = f"The filename of this recording is: '{base_name}'. Please use the date and name from the filename for the Meeting Overview if applicable.\n\n{SUMMARY_PROMPT}"
+        prompt = prompt_with_filename
         if context:
             prompt = f"""## Additional Context
 The following context has been provided to help with the summary:
@@ -96,15 +107,26 @@ The following context has been provided to help with the summary:
 
 ---
 
-{SUMMARY_PROMPT}"""
+{prompt_with_filename}"""
             print("  Using provided context...")
 
         print("  Generating summary...")
         model = genai.GenerativeModel(model_name=MODEL)
-        response = model.generate_content(
-            [video_file, prompt],
-            request_options={"timeout": 600}
-        )
+        
+        response = None
+        for attempt in range(3):
+            try:
+                response = model.generate_content(
+                    [video_file, prompt],
+                    request_options={"timeout": 1200}
+                )
+                break
+            except Exception as e:
+                print(f"  Generation attempt {attempt + 1} failed: {e}")
+                if attempt == 2:
+                    raise
+                print("  Waiting 30 seconds before retrying...")
+                time.sleep(30)
         
         # Save output as markdown
         base_name = os.path.basename(video_path)
@@ -159,9 +181,15 @@ def main():
         print("No .mov files found in 'input' folder.")
         return
 
-    for video_path in mov_files:
+    for i, video_path in enumerate(mov_files):
         summarize_video(video_path, context)
         print("-" * 30)
+        
+        # Add a delay between requests to avoid hitting rate limits, 
+        # but skip the delay after the very last file
+        if i < len(mov_files) - 1:
+            print("  Waiting 15 seconds to respect API rate limits...")
+            time.sleep(15)
 
     print("All done!")
 
